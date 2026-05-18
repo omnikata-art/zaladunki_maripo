@@ -227,6 +227,12 @@ h2 {
   gap: 12px;
 }
 
+.grid-three {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr 0.9fr;
+  gap: 12px;
+}
+
 .main-board {
   display: grid;
   gap: 18px;
@@ -426,7 +432,8 @@ h2 {
   }
 
   .hero__stats,
-  .grid-two {
+  .grid-two,
+  .grid-three {
     grid-template-columns: 1fr;
   }
 

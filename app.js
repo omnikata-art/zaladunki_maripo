@@ -24,7 +24,8 @@
     loadForm: document.getElementById('loadForm'),
     loadVehicle: document.getElementById('loadVehicle'),
     loadDate: document.getElementById('loadDate'),
-    loadTime: document.getElementById('loadTime'),
+    loadStartTime: document.getElementById('loadStartTime'),
+    loadEndTime: document.getElementById('loadEndTime'),
     loadName: document.getElementById('loadName'),
     loadFrom: document.getElementById('loadFrom'),
     loadTo: document.getElementById('loadTo'),
@@ -68,7 +69,10 @@
   function readState() {
     try {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      if (stored && Array.isArray(stored.vehicles) && Array.isArray(stored.loads)) return stored;
+      if (stored && Array.isArray(stored.vehicles) && Array.isArray(stored.loads)) {
+        stored.loads = stored.loads.map(normalizeLoadTimeRange);
+        return stored;
+      }
     } catch {
       // Corrupted local storage should not block the dispatcher.
     }
@@ -78,7 +82,8 @@
         id: createId(),
         vehicleId: seeded.vehicles[0].id,
         date: toDateInputValue(today),
-        time: '08:00',
+        startTime: '08:00',
+        endTime: '10:00',
         name: 'Palety euro',
         from: 'Poznan',
         to: 'Wroclaw',
@@ -118,6 +123,24 @@
     return new Date(year, month - 1, day, hour || 0, minute || 0, 0);
   }
 
+  function addMinutes(timeString, minutesToAdd) {
+    const [hour, minute] = (timeString || '00:00').split(':').map(Number);
+    const date = new Date(2000, 0, 1, hour || 0, minute || 0, 0);
+    date.setMinutes(date.getMinutes() + minutesToAdd);
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
+
+  function normalizeLoadTimeRange(load) {
+    const startTime = load.startTime || load.time || '08:00';
+    const endTime = load.endTime || addMinutes(startTime, 60);
+    const { time, ...rest } = load;
+    return { ...rest, startTime, endTime };
+  }
+
+  function timeRange(load) {
+    return `${load.startTime || load.time || '00:00'}-${load.endTime || addMinutes(load.startTime || load.time, 60)}`;
+  }
+
   function formatDate(dateString) {
     const date = parseLocalDate(dateString);
     return `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}`;
@@ -132,7 +155,7 @@
   }
 
   function sortedLoads(loads = state.loads) {
-    return [...loads].sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
+    return [...loads].sort((a, b) => `${a.date}T${a.startTime || a.time}`.localeCompare(`${b.date}T${b.startTime || b.time}`));
   }
 
   function emptyState(text = 'Dodaj pierwszy wpis w formularzu po lewej stronie.') {
@@ -207,7 +230,7 @@
         <div class="load-card__top">
           <div>
             <strong>${escapeHtml(load.name)}</strong>
-            <div class="meta">${formatDate(load.date)} · ${escapeHtml(load.time)} · ${escapeHtml(load.from)} -> ${escapeHtml(load.to)}</div>
+            <div class="meta">${formatDate(load.date)} · ${escapeHtml(timeRange(load))} · ${escapeHtml(load.from)} -> ${escapeHtml(load.to)}</div>
           </div>
           <span class="status ${load.status}">${statusLabels[load.status]}</span>
         </div>
@@ -268,7 +291,7 @@
         item.dataset.action = 'focusLoad';
         item.dataset.id = load.id;
         item.innerHTML = `
-          <strong>${escapeHtml(load.time)} ${escapeHtml(vehicle ? vehicle.plate : 'BRAK')}</strong>
+          <strong>${escapeHtml(timeRange(load))} ${escapeHtml(vehicle ? vehicle.plate : 'BRAK')}</strong>
           <span>${escapeHtml(load.name)}</span>
           <span>${escapeHtml(load.from)} -> ${escapeHtml(load.to)}</span>
         `;
@@ -327,12 +350,17 @@
       alert('Wybierz poprawny samochod.');
       return;
     }
+    if (els.loadEndTime.value <= els.loadStartTime.value) {
+      alert('Godzina zakonczenia musi byc pozniejsza niz godzina rozpoczecia.');
+      return;
+    }
 
     state.loads.push({
       id: createId(),
       vehicleId,
       date: els.loadDate.value,
-      time: els.loadTime.value,
+      startTime: els.loadStartTime.value,
+      endTime: els.loadEndTime.value,
       name: els.loadName.value.trim(),
       from: els.loadFrom.value.trim(),
       to: els.loadTo.value.trim(),
@@ -404,11 +432,12 @@
 
   function loadToIcs(load) {
     const vehicle = vehicleById(load.vehicleId);
-    const start = parseLocalDate(load.date, load.time);
-    const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+    const start = parseLocalDate(load.date, load.startTime || load.time);
+    const end = parseLocalDate(load.date, load.endTime || addMinutes(load.startTime || load.time, 60));
     const summary = `${vehicle ? vehicle.plate : 'Samochod'} - ${load.name}`;
     const description = [
       `Samochod: ${vehicle ? `${vehicle.plate} ${vehicle.name}` : 'brak'}`,
+      `Przedzial: ${timeRange(load)}`,
       `Trasa: ${load.from} -> ${load.to}`,
       `Waga: ${load.weight || 'brak danych'}`,
       `Status: ${statusLabels[load.status]}`,
@@ -461,7 +490,8 @@
 
   function setDefaultLoadDate() {
     els.loadDate.value = toDateInputValue(today);
-    els.loadTime.value = '08:00';
+    els.loadStartTime.value = '08:00';
+    els.loadEndTime.value = '10:00';
   }
 
   els.vehicleForm.addEventListener('submit', addVehicle);
@@ -480,7 +510,7 @@
     const load = state.loads.find(item => item.id === button.dataset.id);
     if (button.dataset.action === 'cycleStatus') cycleStatus(button.dataset.id);
     if (button.dataset.action === 'deleteLoad') deleteLoad(button.dataset.id);
-    if (button.dataset.action === 'downloadIcs' && load) downloadIcs([load], `ladunek-${load.date}-${load.time}.ics`);
+    if (button.dataset.action === 'downloadIcs' && load) downloadIcs([load], `ladunek-${load.date}-${load.startTime}-${load.endTime}.ics`);
   });
 
   els.calendar.addEventListener('click', (event) => {
