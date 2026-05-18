@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zaladunki Maripo</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Maripo Transport</p>
+        <h1>Zaladunki Maripo</h1>
+        <p class="lead">Planowanie samochodow, ladunkow i terminow w jednym kalendarzu.</p>
+      </div>
+      <div class="hero__stats" aria-label="Podsumowanie">
+        <span><strong id="carsCount">0</strong> samochodow</span>
+        <span><strong id="loadsCount">0</strong> ladunkow</span>
+        <span><strong id="todayCount">0</strong> dzisiaj</span>
+      </div>
+    </header>
+
+    <section class="workspace">
+      <aside class="panel forms-panel">
+        <section class="card">
+          <div class="section-title">
+            <span>01</span>
+            <h2>Dodaj samochod</h2>
+          </div>
+          <form id="vehicleForm" class="stack">
+            <label>
+              Nazwa / kierowca
+              <input id="vehicleName" type="text" placeholder="np. MAN - Adam" required />
+            </label>
+            <label>
+              Numer rejestracyjny
+              <input id="vehiclePlate" type="text" placeholder="np. PO 1234X" required />
+            </label>
+            <label>
+              Typ pojazdu
+              <select id="vehicleType">
+                <option>Ciagnik siodlowy</option>
+                <option>Bus</option>
+                <option>Solowka</option>
+                <option>Naczepa chlodnia</option>
+                <option>Inny</option>
+              </select>
+            </label>
+            <button type="submit">Dodaj do floty</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <div class="section-title">
+            <span>02</span>
+            <h2>Dodaj ladunek</h2>
+          </div>
+          <form id="loadForm" class="stack">
+            <label>
+              Samochod
+              <select id="loadVehicle" required></select>
+            </label>
+            <div class="grid-two">
+              <label>
+                Data
+                <input id="loadDate" type="date" required />
+              </label>
+              <label>
+                Godzina
+                <input id="loadTime" type="time" required />
+              </label>
+            </div>
+            <label>
+              Ladunek
+              <input id="loadName" type="text" placeholder="np. palety, stal, AGD" required />
+            </label>
+            <div class="grid-two">
+              <label>
+                Skad
+                <input id="loadFrom" type="text" placeholder="np. Poznan" required />
+              </label>
+              <label>
+                Dokad
+                <input id="loadTo" type="text" placeholder="np. Berlin" required />
+              </label>
+            </div>
+            <div class="grid-two">
+              <label>
+                Waga
+                <input id="loadWeight" type="text" placeholder="np. 12 t" />
+              </label>
+              <label>
+                Status
+                <select id="loadStatus">
+                  <option value="planned">Planowany</option>
+                  <option value="loading">Na zaladunku</option>
+                  <option value="road">W trasie</option>
+                  <option value="done">Dostarczony</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              Notatki
+              <textarea id="loadNotes" rows="3" placeholder="Uwagi dla kierowcy, nr zlecenia, kontakt..."></textarea>
+            </label>
+            <button type="submit">Zapisz w kalendarzu</button>
+          </form>
+        </section>
+      </aside>
+
+      <section class="main-board">
+        <section class="panel">
+          <div class="toolbar">
+            <div>
+              <p class="eyebrow">Kalendarz</p>
+              <h2 id="calendarTitle">Miesiac</h2>
+            </div>
+            <div class="toolbar__actions">
+              <button id="prevMonth" type="button">Poprzedni</button>
+              <button id="todayBtn" type="button">Dzisiaj</button>
+              <button id="nextMonth" type="button">Nastepny</button>
+            </div>
+          </div>
+          <div class="calendar" id="calendar" aria-label="Kalendarz ladunkow"></div>
+        </section>
+
+        <section class="split">
+          <section class="panel">
+            <div class="toolbar">
+              <div>
+                <p class="eyebrow">Flota</p>
+                <h2>Samochody</h2>
+              </div>
+            </div>
+            <div id="vehiclesList" class="list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="toolbar">
+              <div>
+                <p class="eyebrow">Transport</p>
+                <h2>Ladunki</h2>
+              </div>
+              <button id="exportAllBtn" type="button">Eksport .ics</button>
+            </div>
+            <div id="loadsList" class="list"></div>
+          </section>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <template id="emptyStateTemplate">
+    <div class="empty-state">
+      <strong>Brak danych</strong>
+      <span>Dodaj pierwszy wpis w formularzu po lewej stronie.</span>
+    </div>
+  </template>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
