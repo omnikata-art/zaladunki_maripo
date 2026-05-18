@@ -233,6 +233,12 @@ h2 {
   gap: 12px;
 }
 
+.grid-period {
+  display: grid;
+  grid-template-columns: 1.1fr 0.8fr 1.1fr 0.8fr;
+  gap: 12px;
+}
+
 .main-board {
   display: grid;
   gap: 18px;
@@ -433,7 +439,8 @@ h2 {
 
   .hero__stats,
   .grid-two,
-  .grid-three {
+  .grid-three,
+  .grid-period {
     grid-template-columns: 1fr;
   }
 

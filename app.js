@@ -23,8 +23,9 @@
     vehicleType: document.getElementById('vehicleType'),
     loadForm: document.getElementById('loadForm'),
     loadVehicle: document.getElementById('loadVehicle'),
-    loadDate: document.getElementById('loadDate'),
+    loadStartDate: document.getElementById('loadStartDate'),
     loadStartTime: document.getElementById('loadStartTime'),
+    loadEndDate: document.getElementById('loadEndDate'),
     loadEndTime: document.getElementById('loadEndTime'),
     loadName: document.getElementById('loadName'),
     loadFrom: document.getElementById('loadFrom'),
@@ -70,7 +71,7 @@
     try {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
       if (stored && Array.isArray(stored.vehicles) && Array.isArray(stored.loads)) {
-        stored.loads = stored.loads.map(normalizeLoadTimeRange);
+        stored.loads = stored.loads.map(normalizeLoadPeriod);
         return stored;
       }
     } catch {
@@ -81,7 +82,8 @@
       seeded.loads.push({
         id: createId(),
         vehicleId: seeded.vehicles[0].id,
-        date: toDateInputValue(today),
+        startDate: toDateInputValue(today),
+        endDate: toDateInputValue(today),
         startTime: '08:00',
         endTime: '10:00',
         name: 'Palety euro',
@@ -130,15 +132,75 @@
     return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   }
 
-  function normalizeLoadTimeRange(load) {
+  function addMinutesToDateTime(dateString, timeString, minutesToAdd) {
+    const date = parseLocalDate(dateString, timeString);
+    date.setMinutes(date.getMinutes() + minutesToAdd);
+    return {
+      date: toDateInputValue(date),
+      time: `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`,
+    };
+  }
+
+  function normalizeLoadPeriod(load) {
+    const startDate = load.startDate || load.date || toDateInputValue(today);
     const startTime = load.startTime || load.time || '08:00';
-    const endTime = load.endTime || addMinutes(startTime, 60);
-    const { time, ...rest } = load;
-    return { ...rest, startTime, endTime };
+    let endDate = load.endDate || load.date || startDate;
+    let endTime = load.endTime || addMinutes(startTime, 60);
+
+    if (`${endDate}T${endTime}` <= `${startDate}T${startTime}`) {
+      const fallbackEnd = addMinutesToDateTime(startDate, startTime, 60);
+      endDate = fallbackEnd.date;
+      endTime = fallbackEnd.time;
+    }
+
+    const { date, time, ...rest } = load;
+    return { ...rest, startDate, endDate, startTime, endTime };
+  }
+
+  function loadStartDate(load) {
+    return load.startDate || load.date || toDateInputValue(today);
+  }
+
+  function loadEndDate(load) {
+    return load.endDate || load.date || loadStartDate(load);
+  }
+
+  function loadStartTime(load) {
+    return load.startTime || load.time || '00:00';
+  }
+
+  function loadEndTime(load) {
+    return load.endTime || addMinutes(loadStartTime(load), 60);
   }
 
   function timeRange(load) {
-    return `${load.startTime || load.time || '00:00'}-${load.endTime || addMinutes(load.startTime || load.time, 60)}`;
+    return `${loadStartTime(load)}-${loadEndTime(load)}`;
+  }
+
+  function loadStartStamp(load) {
+    return `${loadStartDate(load)}T${loadStartTime(load)}`;
+  }
+
+  function loadEndStamp(load) {
+    return `${loadEndDate(load)}T${loadEndTime(load)}`;
+  }
+
+  function dateInLoadPeriod(load, dateString) {
+    return dateString >= loadStartDate(load) && dateString <= loadEndDate(load);
+  }
+
+  function periodLabel(load) {
+    if (loadStartDate(load) === loadEndDate(load)) {
+      return `${formatDate(loadStartDate(load))} · ${timeRange(load)}`;
+    }
+    return `${formatDate(loadStartDate(load))} ${loadStartTime(load)} -> ${formatDate(loadEndDate(load))} ${loadEndTime(load)}`;
+  }
+
+  function calendarPeriodLabel(load, dateString) {
+    if (loadStartDate(load) === loadEndDate(load)) return timeRange(load);
+    if (dateString === loadStartDate(load)) return `${loadStartTime(load)} start`;
+    if (dateString === loadEndDate(load)) return `${loadEndTime(load)} koniec`;
+    return 'w trasie';
   }
 
   function formatDate(dateString) {
@@ -155,7 +217,11 @@
   }
 
   function sortedLoads(loads = state.loads) {
-    return [...loads].sort((a, b) => `${a.date}T${a.startTime || a.time}`.localeCompare(`${b.date}T${b.startTime || b.time}`));
+    return [...loads].sort((a, b) => {
+      const byStart = loadStartStamp(a).localeCompare(loadStartStamp(b));
+      if (byStart) return byStart;
+      return loadEndStamp(a).localeCompare(loadEndStamp(b));
+    });
   }
 
   function emptyState(text = 'Dodaj pierwszy wpis w formularzu po lewej stronie.') {
@@ -230,7 +296,7 @@
         <div class="load-card__top">
           <div>
             <strong>${escapeHtml(load.name)}</strong>
-            <div class="meta">${formatDate(load.date)} · ${escapeHtml(timeRange(load))} · ${escapeHtml(load.from)} -> ${escapeHtml(load.to)}</div>
+            <div class="meta">${escapeHtml(periodLabel(load))} · ${escapeHtml(load.from)} -> ${escapeHtml(load.to)}</div>
           </div>
           <span class="status ${load.status}">${statusLabels[load.status]}</span>
         </div>
@@ -269,7 +335,7 @@
       const date = new Date(gridStart);
       date.setDate(gridStart.getDate() + i);
       const iso = toDateInputValue(date);
-      const dayLoads = sortedLoads(state.loads.filter(load => load.date === iso));
+      const dayLoads = sortedLoads(state.loads.filter(load => dateInLoadPeriod(load, iso)));
 
       const day = document.createElement('div');
       day.className = 'calendar__day';
@@ -291,7 +357,7 @@
         item.dataset.action = 'focusLoad';
         item.dataset.id = load.id;
         item.innerHTML = `
-          <strong>${escapeHtml(timeRange(load))} ${escapeHtml(vehicle ? vehicle.plate : 'BRAK')}</strong>
+          <strong>${escapeHtml(calendarPeriodLabel(load, iso))} ${escapeHtml(vehicle ? vehicle.plate : 'BRAK')}</strong>
           <span>${escapeHtml(load.name)}</span>
           <span>${escapeHtml(load.from)} -> ${escapeHtml(load.to)}</span>
         `;
@@ -312,7 +378,7 @@
     const todayIso = toDateInputValue(today);
     els.carsCount.textContent = String(state.vehicles.length);
     els.loadsCount.textContent = String(state.loads.length);
-    els.todayCount.textContent = String(state.loads.filter(load => load.date === todayIso).length);
+    els.todayCount.textContent = String(state.loads.filter(load => dateInLoadPeriod(load, todayIso)).length);
   }
 
   function render() {
@@ -350,15 +416,18 @@
       alert('Wybierz poprawny samochod.');
       return;
     }
-    if (els.loadEndTime.value <= els.loadStartTime.value) {
-      alert('Godzina zakonczenia musi byc pozniejsza niz godzina rozpoczecia.');
+    const startStamp = `${els.loadStartDate.value}T${els.loadStartTime.value}`;
+    const endStamp = `${els.loadEndDate.value}T${els.loadEndTime.value}`;
+    if (endStamp <= startStamp) {
+      alert('Data i godzina zakonczenia musza byc pozniejsze niz rozpoczecie.');
       return;
     }
 
     state.loads.push({
       id: createId(),
       vehicleId,
-      date: els.loadDate.value,
+      startDate: els.loadStartDate.value,
+      endDate: els.loadEndDate.value,
       startTime: els.loadStartTime.value,
       endTime: els.loadEndTime.value,
       name: els.loadName.value.trim(),
@@ -432,12 +501,12 @@
 
   function loadToIcs(load) {
     const vehicle = vehicleById(load.vehicleId);
-    const start = parseLocalDate(load.date, load.startTime || load.time);
-    const end = parseLocalDate(load.date, load.endTime || addMinutes(load.startTime || load.time, 60));
+    const start = parseLocalDate(loadStartDate(load), loadStartTime(load));
+    const end = parseLocalDate(loadEndDate(load), loadEndTime(load));
     const summary = `${vehicle ? vehicle.plate : 'Samochod'} - ${load.name}`;
     const description = [
       `Samochod: ${vehicle ? `${vehicle.plate} ${vehicle.name}` : 'brak'}`,
-      `Przedzial: ${timeRange(load)}`,
+      `Okres: ${periodLabel(load)}`,
       `Trasa: ${load.from} -> ${load.to}`,
       `Waga: ${load.weight || 'brak danych'}`,
       `Status: ${statusLabels[load.status]}`,
@@ -489,13 +558,22 @@
   }
 
   function setDefaultLoadDate() {
-    els.loadDate.value = toDateInputValue(today);
+    const todayIso = toDateInputValue(today);
+    els.loadStartDate.value = todayIso;
+    els.loadEndDate.value = todayIso;
     els.loadStartTime.value = '08:00';
     els.loadEndTime.value = '10:00';
   }
 
+  function syncEndDateWithStart() {
+    if (!els.loadEndDate.value || els.loadEndDate.value < els.loadStartDate.value) {
+      els.loadEndDate.value = els.loadStartDate.value;
+    }
+  }
+
   els.vehicleForm.addEventListener('submit', addVehicle);
   els.loadForm.addEventListener('submit', addLoad);
+  els.loadStartDate.addEventListener('change', syncEndDateWithStart);
 
   els.vehiclesList.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-action]');
@@ -510,7 +588,9 @@
     const load = state.loads.find(item => item.id === button.dataset.id);
     if (button.dataset.action === 'cycleStatus') cycleStatus(button.dataset.id);
     if (button.dataset.action === 'deleteLoad') deleteLoad(button.dataset.id);
-    if (button.dataset.action === 'downloadIcs' && load) downloadIcs([load], `ladunek-${load.date}-${load.startTime}-${load.endTime}.ics`);
+    if (button.dataset.action === 'downloadIcs' && load) {
+      downloadIcs([load], `ladunek-${loadStartDate(load)}-${loadStartTime(load)}-${loadEndDate(load)}-${loadEndTime(load)}.ics`);
+    }
   });
 
   els.calendar.addEventListener('click', (event) => {
