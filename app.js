@@ -49,6 +49,7 @@
 
   const today = new Date();
   let calendarDate = new Date(today.getFullYear(), today.getMonth(), 1);
+  let storageWarningShown = false;
   let state = readState();
 
   function seedState() {
@@ -72,6 +73,10 @@
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
       if (stored && Array.isArray(stored.vehicles) && Array.isArray(stored.loads)) {
         stored.loads = stored.loads.map(normalizeLoadPeriod);
+        stored.meta = stored.meta || {
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
         return stored;
       }
     } catch {
@@ -99,8 +104,20 @@
   }
 
   function writeState() {
+    state.meta = state.meta || {
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
     state.meta.updatedAt = new Date().toISOString();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (error) {
+      console.warn('Nie mozna zapisac danych w localStorage.', error);
+      if (!storageWarningShown) {
+        alert('Nie moge zapisac danych na stale w tej przegladarce. Zmiany beda widoczne do odswiezenia strony. Najlepiej uruchom aplikacje przez lokalny serwer albo GitHub Pages.');
+        storageWarningShown = true;
+      }
+    }
   }
 
   function createId() {
